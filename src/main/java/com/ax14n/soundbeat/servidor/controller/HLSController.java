@@ -44,16 +44,6 @@ public final class HLSController {
 		return obtenerArchivo(path, "application/vnd.apple.mpegurl");
 	}
 
-	// Sirve los fragmentos .ts
-	@GetMapping("/{fragmento}.ts")
-	public ResponseEntity<Resource> obtenerFragmento(@PathVariable String fragmento) {
-		// Formo el PATH donde se encuentra el fragmento de la canción.
-		Path path = Paths.get(RUTA_CANCIONES + fragmento + ".ts");
-		// Devuelvo el fragmento de la canción.
-		System.out.println("Intentando obtener "+path);
-		return obtenerArchivo(path, "video/mp2t");
-	}
-
 	/**
 	 * Función genérica para leer los archivos.
 	 * 
