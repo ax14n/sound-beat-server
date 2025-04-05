@@ -1,9 +1,15 @@
 package com.ax14n.soundbeat.servidor.controller;
 
 import java.net.MalformedURLException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
+import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.MediaType;
@@ -23,25 +29,78 @@ import org.springframework.web.bind.annotation.RestController;
 public final class HLSController {
 
 	/**
-	 * Ruta del directorio donde se encuentran los indices de las canciones a
-	 * reproducir
+	 * Objeto encargado de gestionar las consultas de la base de datos.
 	 */
-	private final String RUTA_CANCIONES = "/home/me/Documentos/canciones-hls/";
+	private final QueriesMaker queriesMaker;
+
+	/**
+	 * Constructor del controlador de la base de datos que tiene una inyección de
+	 * dependencias para QueriesMaker
+	 * 
+	 * @param queriesMaker Objeto encargado de gestionar las consultas de la base de
+	 *                     datos.
+	 */
+	@Autowired
+	public HLSController(QueriesMaker queriesMaker) {
+		this.queriesMaker = queriesMaker;
+	}
 
 	/**
 	 * Obtiene el archivo .m3u8 donde se indexan los tramos de las canciones y lo
 	 * devuelve.
 	 * 
-	 * @param nombrePlaylist Nombre del archivo que contiene el índice.
+	 * @param cancion Nombre del archivo que contiene el índice.
 	 * @return
 	 */
-	@GetMapping("/{nombrePlaylist}.m3u8")
-	public ResponseEntity<Resource> obtenerPlaylist(@PathVariable String nombrePlaylist) {
-		// Formo el PATH donde se encuentra el índice de la canción.
-		Path path = Paths.get(RUTA_CANCIONES + nombrePlaylist + ".m3u8");
-		// Devuelvo el archivo ubicado en dicha ruta.
-		System.out.println("Intentando obtener "+path);
+	@GetMapping("{cancion}.m3u8")
+	public ResponseEntity<Resource> obtenerPlaylist(@PathVariable String cancion) {
+		cancion = URLDecoder.decode(cancion, StandardCharsets.UTF_8);
+
+		String sql = "SELECT * FROM songs WHERE title = ?";
+		List<Map<String, Object>> resultado = queriesMaker.ejecutarConsultaSegura(sql, cancion);
+
+		if (resultado.isEmpty()) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+		}
+
+		Path path = Paths.get((String) queriesMaker.ejecutarConsultaSegura(sql, cancion).getFirst().get("url"));
+
+		System.out.println("Intentando obtener " + path);
 		return obtenerArchivo(path, "application/vnd.apple.mpegurl");
+	}
+
+	@GetMapping("{segmento}.ts")
+	public ResponseEntity<Resource> obtenerSegmento(@PathVariable String segmento) {
+		System.out.println("Intentando obtener segmento: " + segmento);
+		// Formo el PATH donde se encuentran los segmentos .ts de la canción
+
+		String sql = "SELECT * FROM songs WHERE title = ?";
+		List<Map<String, Object>> resultado = queriesMaker.ejecutarConsultaSegura(sql,
+				segmento.substring(0, segmento.length() - 4));
+
+		if (resultado.isEmpty()) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+		}
+
+		// Aquí obtengo la URL base donde se encuentran los archivos .ts
+		String basePath = (String) resultado.getFirst().get("url");
+
+		// Eliminamos el último fragmento (el nombre del archivo)
+		basePath = basePath.substring(0, basePath.lastIndexOf("/"));
+
+		System.out.println("basePath : " + basePath);
+		// Formo el path del segmento .ts
+		Path path = Paths.get(basePath, segmento + ".ts");
+
+		System.out.println("Intentando obtener segmento: " + path);
+
+		// Verificamos si el archivo existe
+		if (!Files.exists(path)) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+		}
+
+		// Devuelvo el archivo .ts
+		return obtenerArchivo(path, "video/MP2T");
 	}
 
 	/**
@@ -55,6 +114,7 @@ public final class HLSController {
 		try {
 			Resource recurso = new UrlResource(path.toUri());
 			if (recurso.exists() || recurso.isReadable()) {
+				System.out.println("Devolviendo recurso " + path);
 				return ResponseEntity.ok().contentType(MediaType.parseMediaType(contentType)).body(recurso);
 			} else {
 				// En caso de no existir el recurso, se devuelve NOT_FOUND al solicitante.
