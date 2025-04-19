@@ -16,7 +16,7 @@ public class SecurityConfig {
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		return http.csrf(AbstractHttpConfigurer::disable)
 				.authorizeHttpRequests(
-						auth -> auth.requestMatchers("/api/register", "/media/**").permitAll().anyRequest().authenticated())
+						auth -> auth.requestMatchers("/api/**", "/media/**").permitAll().anyRequest().authenticated())
 				.httpBasic(withDefaults()) // Importa con static
 				.build();
 	}

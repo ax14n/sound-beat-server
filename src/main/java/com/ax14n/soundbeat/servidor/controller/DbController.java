@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
@@ -88,7 +89,7 @@ public class DbController {
 	 * especificarse un género por parámetros a través de la petición POST para
 	 * hacer una búsqueda más específica.
 	 * 
-	 * Para consulta general: curl "http://localhost:8080/songs"
+	 * Para consulta general: curl "http://localhost:8080/api/songs"
 	 * 
 	 * Para búscar con género: curl "http://localhost:8080/songs?genre=rock"
 	 * 
@@ -145,7 +146,7 @@ public class DbController {
 	/**
 	 * Verifica si un usuario ya existe en la base de datos.
 	 * 
-	 * curl "http://localhost:8080/userExists?email=usuario@example.com"
+	 * curl "http://localhost:8080/api/userExists?email=usuario@example.com"
 	 * 
 	 * @param email Correo electrónico del usuario a verificar.
 	 * @return true si el usuario existe, false en caso contrario.
@@ -158,15 +159,41 @@ public class DbController {
 		if (email == null || email.isEmpty()) {
 			throw new IllegalArgumentException("Error: el email es obligatorio.");
 		}
+		String sql = "SELECT EXISTS (SELECT 1 FROM users WHERE email = ?) AS existe";
+		List<Map<String, Object>> resultado = queriesMaker.ejecutarConsultaSegura(sql, email);
 
-		// --- { Creación de la consulta de selección } --- //
-		String sql = "SELECT COUNT(*) FROM users WHERE email = ?";
+		boolean exists = false;
+		if (!resultado.isEmpty()) {
+			exists = Boolean.TRUE.equals(resultado.get(0).get("existe"));
+		}
 
-		// --- { Ejecución de la consulta } --- //
-		boolean exists = !queriesMaker.ejecutarConsultaSegura(sql, email).isEmpty();
-
-		// --- { Retorno del resultado } --- //
+		System.out.println("Resultado = " + exists);
 		return exists;
+
+	}
+
+	/**
+	 * Solicita la información mínima del usuario para completar el perfil.
+	 * 
+	 * @param email Correo electrónico del usuario con el que se rellanará el perfil.
+	 * @return Mínima información necesaria del usuario para completar el perfil.
+	 */
+	@GetMapping("/userInfo")
+	public Map<String, Object> obtenerInfoUsuario(@RequestParam String email) {
+		System.out.println("Obteniendo información del usuario con email: " + email);
+
+		if (email == null || email.isEmpty()) {
+			throw new IllegalArgumentException("Error: el email es obligatorio.");
+		}
+
+		String sql = "SELECT username, DATE(date_joined) AS fecha_registro FROM users WHERE email = ?";
+		List<Map<String, Object>> resultado = queriesMaker.ejecutarConsultaSegura(sql, email);
+
+		if (resultado.isEmpty()) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado.");
+		}
+
+		return resultado.get(0); // Retorna solo un usuario
 	}
 
 	/**

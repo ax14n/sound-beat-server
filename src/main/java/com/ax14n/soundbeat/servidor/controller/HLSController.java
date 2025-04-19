@@ -65,13 +65,13 @@ public final class HLSController {
 
 		Path path = Paths.get((String) queriesMaker.ejecutarConsultaSegura(sql, cancion).getFirst().get("url"));
 
-		System.out.println("Intentando obtener " + path);
+//		System.out.println("Intentando obtener " + path);
 		return obtenerArchivo(path, "application/vnd.apple.mpegurl");
 	}
 
 	@GetMapping("{segmento}.ts")
 	public ResponseEntity<Resource> obtenerSegmento(@PathVariable String segmento) {
-		System.out.println("Intentando obtener segmento: " + segmento);
+//		System.out.println("Intentando obtener segmento: " + segmento);
 		// Formo el PATH donde se encuentran los segmentos .ts de la canción
 
 		String sql = "SELECT * FROM songs WHERE title = ?";
@@ -88,11 +88,11 @@ public final class HLSController {
 		// Eliminamos el último fragmento (el nombre del archivo)
 		basePath = basePath.substring(0, basePath.lastIndexOf("/"));
 
-		System.out.println("basePath : " + basePath);
+//		System.out.println("basePath : " + basePath);
 		// Formo el path del segmento .ts
 		Path path = Paths.get(basePath, segmento + ".ts");
 
-		System.out.println("Intentando obtener segmento: " + path);
+//		System.out.println("Intentando obtener segmento: " + path);
 
 		// Verificamos si el archivo existe
 		if (!Files.exists(path)) {
@@ -114,7 +114,7 @@ public final class HLSController {
 		try {
 			Resource recurso = new UrlResource(path.toUri());
 			if (recurso.exists() || recurso.isReadable()) {
-				System.out.println("Devolviendo recurso " + path);
+//				System.out.println("Devolviendo recurso " + path);
 				return ResponseEntity.ok().contentType(MediaType.parseMediaType(contentType)).body(recurso);
 			} else {
 				// En caso de no existir el recurso, se devuelve NOT_FOUND al solicitante.
