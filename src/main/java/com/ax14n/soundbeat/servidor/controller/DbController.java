@@ -91,7 +91,7 @@ public class DbController {
 	 * 
 	 * Para consulta general: curl "http://localhost:8080/api/songs"
 	 * 
-	 * Para búscar con género: curl "http://localhost:8080/songs?genre=rock"
+	 * Para búscar con género: curl "http://localhost:8080/api/songs?genre=rock"
 	 * 
 	 * @param genre Género de la canción.
 	 * @return Canciones almacenadas en el servidor, por género o en general.
@@ -193,13 +193,13 @@ public class DbController {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado.");
 		}
 
-		return resultado.get(0); // Retorna solo un usuario
+		return resultado.get(0); 
 	}
 
 	/**
 	 * Inicia sesión verificando la contraseña cifrada.
 	 *
-	 * curl -X POST http://localhost:8080/login \ -H "Content-Type:
+	 * curl -X POST http://localhost:8080/api/login \ -H "Content-Type:
 	 * application/json" \ -d '{ "email": "usuario@example.com", "password":
 	 * "contraseña123" }'
 	 *
@@ -239,14 +239,12 @@ public class DbController {
 		}
 	}
 
-	private static final String ERROR_PATH = "/error";
-
 	/**
 	 * Manejador de rutas no encontradas (404).
 	 *
 	 * @return Respuesta JSON con mensaje de error.
 	 */
-	@RequestMapping(value = ERROR_PATH)
+	@PostMapping("/error")
 	public ResponseEntity<Map<String, Object>> handleError() {
 		Map<String, Object> errorResponse = new HashMap<>();
 		errorResponse.put("status", 404);
