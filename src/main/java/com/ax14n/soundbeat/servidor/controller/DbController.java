@@ -100,7 +100,7 @@ public class DbController {
 	public List<Map<String, Object>> getSongs(@RequestParam(required = false) String genre) {
 		if (genre == null || "null".equalsIgnoreCase(genre.trim())) {
 			return queriesMaker.ejecutarConsulta("SELECT * FROM songs");
-		}
+		}	
 		String sql = "SELECT * FROM songs WHERE genres IS NOT NULL AND ? = ANY(genres)";
 		return queriesMaker.ejecutarConsultaSegura(sql, genre);
 	}
@@ -175,7 +175,8 @@ public class DbController {
 	/**
 	 * Solicita la información mínima del usuario para completar el perfil.
 	 * 
-	 * @param email Correo electrónico del usuario con el que se rellanará el perfil.
+	 * @param email Correo electrónico del usuario con el que se rellanará el
+	 *              perfil.
 	 * @return Mínima información necesaria del usuario para completar el perfil.
 	 */
 	@GetMapping("/userInfo")
@@ -193,7 +194,7 @@ public class DbController {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado.");
 		}
 
-		return resultado.get(0); 
+		return resultado.get(0);
 	}
 
 	/**
@@ -236,6 +237,98 @@ public class DbController {
 			return "Inicio de sesión exitoso!\n";
 		} else {
 			return "Error: contraseña incorrecta.\n";
+		}
+	}
+
+	/**
+	 * Crea una playlist. Espera que la petición POST llegue con datos compuesto por
+	 * el nombre de la playlist a crear y el email del usuario a quién pertenecerá.
+	 * 
+	 * Petición POST de ejemplo: curl -X POST
+	 * http://localhost:8080/api/createPlaylist \ -u "admin:admin" \ -H
+	 * "Content-Type: application/json" \ -d "{ \"name\": \"THC\", \"email\":
+	 * \"zelmar@gmail.com\"}"
+	 * 
+	 * 
+	 * @param playlistData Datos enviados a través de la petición POST. Espera que
+	 *                     contenga datos compuesto por el nombre de la playlist y
+	 *                     el usuario a quien pertenecerá.
+	 * @return
+	 */
+	@PostMapping("/createPlaylist")
+	public String createPlaylist(@RequestBody Map<String, Object> playlistData) {
+		System.out.println("Datos recibidos para crear playlist: " + playlistData);
+
+		String name = (String) playlistData.get("name");
+		String email = (String) playlistData.get("email");
+
+		if (name == null || email == null) {
+			return "Error: nombre y email son obligatorios.";
+		}
+
+		try {
+			String queryUser = "SELECT user_id FROM users WHERE email = ?";
+			List<Map<String, Object>> userResults = queriesMaker.ejecutarConsultaSegura(queryUser, email);
+
+			if (userResults.isEmpty()) {
+				return "Error: No se encontró un usuario con ese email.";
+			}
+
+			Integer userId = (Integer) userResults.get(0).get("user_id");
+
+			// 2. Insertar la playlist
+			String insertSql = "INSERT INTO playlists (name, user_id) VALUES (?, ?)";
+			int rowsAffected = queriesMaker.ejecutarActualizacion(insertSql, name, userId);
+
+			return (rowsAffected > 0) ? "Playlist creada exitosamente." : "Error al crear la playlist.";
+
+		} catch (Exception e) {
+			e.printStackTrace();
+			return "Error en el servidor: " + e.getMessage();
+		}
+	}
+
+	/**
+	 * Agrega canciones a una playlist existente dentro de la base de datos.
+	 * 
+	 * @param data Datos enviados a través de la petición POST. Se espera que
+	 *             contenga el ID de la playlist y una colección de los ID de las
+	 *             canciones que se desean agregar a ella.
+	 * @return Log
+	 */
+	@PostMapping("/playlists/add-songs")
+	public String addSongsToPlaylist(@RequestBody Map<String, Object> data) {
+		System.out.println("Datos recibidos para agregar canciones: " + data);
+
+		Integer playlistId = (Integer) data.get("playlist_id");
+		@SuppressWarnings("unchecked")
+		List<Integer> songIds = (List<Integer>) data.get("song_ids");
+
+		if (playlistId == null || songIds == null || songIds.isEmpty()) {
+			return "Error: playlist_id y una lista de song_ids son obligatorios.";
+		}
+
+		try {
+			// Verifica que la playlist exista
+			String checkPlaylist = "SELECT 1 FROM playlists WHERE playlist_id = ?";
+			List<Map<String, Object>> exists = queriesMaker.ejecutarConsultaSegura(checkPlaylist, playlistId);
+
+			if (exists.isEmpty()) {
+				return "Error: La playlist con ID " + playlistId + " no existe.";
+			}
+
+			// Agrega cada canción
+			String insertSql = "INSERT INTO playlist_songs (playlist_id, song_id) VALUES (?, ?) ON CONFLICT DO NOTHING";
+
+			for (Integer songId : songIds) {
+				queriesMaker.ejecutarActualizacion(insertSql, playlistId, songId);
+			}
+
+			return "Canciones agregadas exitosamente a la playlist.";
+
+		} catch (Exception e) {
+			e.printStackTrace();
+			return "Error en el servidor: " + e.getMessage();
 		}
 	}
 

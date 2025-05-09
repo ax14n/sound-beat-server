@@ -18,7 +18,7 @@ fi
 # Nombre base sin extensión
 NOMBRE_BASE=$(basename -- "$ARCHIVO_ENTRADA")
 NOMBRE="${NOMBRE_BASE%.*}"
-DIRECTORIO_BASE="$HOME/Documentos/canciones-hls"
+DIRECTORIO_BASE="$HOME/Documentos/SoundBeat-Server/extras/canciones-hls"
 DIRECTORIO_SALIDA="$DIRECTORIO_BASE/$NOMBRE"  # Usa el mismo nombre del archivo dentro del directorio especificado
 
 # Verifica si el directorio base existe, si no, lo crea
