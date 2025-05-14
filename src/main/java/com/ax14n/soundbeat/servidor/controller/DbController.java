@@ -85,6 +85,49 @@ public class DbController {
 	}
 
 	/**
+	 * Devuelve una lista de playlists asociadas a un usuario identificado por su
+	 * email.
+	 * 
+	 * Este método recibe una petición GET con un parámetro `email` y realiza una
+	 * consulta a la base de datos para obtener todas las playlists cuyo `user_id`
+	 * coincida con el del usuario correspondiente al email proporcionado.
+	 *
+	 * @param email Dirección de correo electrónico del usuario.
+	 * @return Lista de mapas con los datos de cada playlist, o null si el email es
+	 *         nulo.
+	 */
+	@GetMapping("/userPlaylists")
+	public List<Map<String, Object>> userPlaylists(@RequestParam String email) {
+		if (email == null) {
+			return null;
+		}
+		String sql = "SELECT * FROM PLAYLISTS WHERE user_id = (SELECT user_id FROM users u where email like ?);";
+		return queriesMaker.ejecutarConsultaSegura(sql, email);
+	}
+	
+	/**
+	 * Devuelve una lista de canciones que pertenecen a una playlist específica.
+	 *
+	 * Este método maneja solicitudes HTTP GET y espera recibir un parámetro `playlistId`.
+	 * Realiza una consulta a la base de datos para recuperar todas las canciones asociadas
+	 * a la playlist con el ID proporcionado. Si el ID es menor que 0, devuelve `null`.
+	 *
+	 * @param playlistId ID de la playlist cuyas canciones se desean recuperar.
+	 * @return Una lista de mapas que representan las canciones de la playlist,
+	 *         o `null` si el ID de la playlist no es válido.
+	 */
+	@GetMapping("/getPlaylistSongs")
+	public List<Map<String, Object>> getPlaylistSongs(@RequestParam int playlistId) {
+		if (playlistId < 0) {
+			return null;
+		}
+		String sql = "SELECT * FROM SONGS WHERE song_id IN (SELECT song_id FROM PLAYLIST_SONGS WHERE playlist_id = ?);";
+		return queriesMaker.ejecutarConsultaSegura(sql, playlistId);
+	}
+	
+	
+
+	/**
 	 * Solicita la información de las canciones almacenadas en el servidor. Puede
 	 * especificarse un género por parámetros a través de la petición POST para
 	 * hacer una búsqueda más específica.
@@ -100,7 +143,7 @@ public class DbController {
 	public List<Map<String, Object>> getSongs(@RequestParam(required = false) String genre) {
 		if (genre == null || "null".equalsIgnoreCase(genre.trim())) {
 			return queriesMaker.ejecutarConsulta("SELECT * FROM songs");
-		}	
+		}
 		String sql = "SELECT * FROM songs WHERE genres IS NOT NULL AND ? = ANY(genres)";
 		return queriesMaker.ejecutarConsultaSegura(sql, genre);
 	}
