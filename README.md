@@ -98,6 +98,6 @@ complicado de hacer.
 
 - **¿Piensas mantener el servidor en local?**
 
-Esto es algo que he pensado y me ha dado problemas a la hora de programar la aplicación final de SoundBeat. Conseguir un dominio facilitaría mucho las cosas en diversos aspectos como el acceso a consultas de la API, 
-certificaciones, y la conexión entre API y aplicación final. En estos momentos, la única forma de conectarse con la API desde la aplicación final es modificando el código para que apunte a una dirección IP fija asociada al servidor. 
-Disponer de un dominio facilitaría esta tarea ya que, si no has reservado una dirección IP dentro de tu red, esta puede cambiar, generando problemas a la hora de autentificarse o cargar canciones y reproducir canciones en línea. 
+Esto es algo que he pensado y me ha dado problemas a la hora de programar la aplicación final de SoundBeat. La respuesta es: "Depende". Conseguir un dominio facilitaría mucho las cosas en diversos aspectos como el acceso a consultas de la API, 
+certificaciones, y la conexión entre API y aplicación final, pero si tu idea es mantenerlo en local y no acceder desde fuera de tu red personal no creo que haya problemas. En estos momentos, la única forma de conectarse con la API desde la aplicación final es modificando el código para que apunte a una dirección IP fija asociada al servidor. Si quisieras conectarte desde fuera de la comodidad de tu hogar, disponer de un dominio facilitaría esta tarea y te permitiría acceder desde
+fuera de tu red si haces que la app apunte a el dominio. Como entenderás, la elección depende de tí: esta sección de FAQ es contestada por ti. 
