@@ -25,7 +25,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @RestController
 @RequestMapping("/api")
 public class DbController {
-
+    
 	/**
 	 * Objeto encargado de gestionar las consultas de la base de datos.
 	 */
@@ -297,14 +297,12 @@ public class DbController {
 	 *                     el usuario a quien pertenecerá.
 	 * @return
 	 */
-	@SuppressWarnings("unchecked")
-	@PostMapping("/playlists/createPlaylist")
+	@PostMapping("/createPlaylist")
 	public String createPlaylist(@RequestBody Map<String, Object> playlistData) {
 		System.out.println("Datos recibidos para crear playlist: " + playlistData);
 
-		String name = (String) playlistData.get("playlist_name");
-		String email = (String) playlistData.get("user_email");
-		List<Integer> songsId = (List<Integer>) playlistData.get("songs_id");
+		String name = (String) playlistData.get("name");
+		String email = (String) playlistData.get("email");
 
 		if (name == null || email == null) {
 			return "Error: nombre y email son obligatorios.";
@@ -324,11 +322,6 @@ public class DbController {
 			String insertSql = "INSERT INTO playlists (name, user_id) VALUES (?, ?)";
 			int rowsAffected = queriesMaker.ejecutarActualizacion(insertSql, name, userId);
 
-			if (songsId != null) {
-				String insertSql2 = "INSERT INTO playlists_songs (name, user_id) VALUES (?, ?)";
-				int rowsAffected2 = queriesMaker.ejecutarActualizacion(insertSql, name, userId);
-			}
-
 			return (rowsAffected > 0) ? "Playlist creada exitosamente." : "Error al crear la playlist.";
 
 		} catch (Exception e) {
@@ -337,28 +330,13 @@ public class DbController {
 		}
 	}
 
-	/**
-	 * Elimina una playlist del sistema a partir de su identificador.
-	 *
-	 * Este endpoint espera recibir el ID de la playlist como parámetro en la URL
-	 * bajo el nombre 'playlist_id'. Si no se encuentra ninguna playlist con ese ID,
-	 * se devuelve un mensaje de error. Si la operación es exitosa, se informa al
-	 * cliente. En caso de error de base de datos o excepciones inesperadas, se
-	 * devuelve un mensaje de error del servidor.
-	 *
-	 * @param playlist_id ID numérico de la playlist que se desea eliminar.
-	 * @return Mensaje indicando el resultado de la operación: - "Playlist creada
-	 *         exitosamente." si la eliminación fue exitosa. - "Error: No se ha
-	 *         encontrado la playlist." si no existe. - Mensajes de error si hay
-	 *         fallos en la validación o en el servidor.
-	 */
-	@PostMapping("/playlists/deletePlaylist")
-	public String deletePlaylist(@RequestBody Map<String, Object> data) {
-		Integer playlist_id = (Integer) data.get("playlist_id");
+	@PostMapping("/deletePlaylist")
+	public String deletePlaylist(@RequestBody Map<String, Object> playlistData) {
+		System.out.println("Datos recibidos para eliminar playlist: " + playlistData);
 
-		System.out.println("Datos recibidos para eliminar playlist: " + playlist_id);
+		String playlist_id = (String) playlistData.get("id");
 
-		if (playlist_id < 0) {
+		if (playlist_id == null) {
 			return "Error: El ID de la playlist es obligatorio.";
 		}
 
@@ -427,47 +405,6 @@ public class DbController {
 		}
 	}
 
-	/**
-	 * Añade una canción a la lista de favoritas de un usuario identificado por su
-	 * email.
-	 *
-	 * @param data Un JSON con los campos: - "email" (String): correo del usuario. -
-	 *             "song_id" (int): ID de la canción a marcar como favorita.
-	 * @return Mensaje indicando si la operación fue exitosa o si ocurrió un error.
-	 */
-	@PostMapping
-	public String addFavorites(@RequestBody Map<String, Object> data) {
-
-		String email = (String) data.get("email");
-		int song_id = (int) data.get("song_id");
-
-		if (email == null || song_id < 0) {
-			return "Error: playlist_id y una lista de song_ids son obligatorios.";
-		}
-
-		try {
-
-			String insertSql = "INSERT INTO Favorites (user_id, song_id) "
-					+ "VALUES ((SELECT user_id FROM Users WHERE email = ?), ?);";
-
-			queriesMaker.ejecutarActualizacion(insertSql, email, song_id);
-
-			return "Canción favorita agregada correctamente";
-
-		} catch (Exception e) {
-			e.printStackTrace();
-			return "Error en el servidor: " + e.getMessage();
-		}
-	}
-
-	/**
-	 * Elimina una o varias canciones de una playlist específica.
-	 *
-	 * @param data Un JSON con los campos: - "playlist_id" (int): ID de la playlist.
-	 *             - "song_ids" (List<Integer>): lista de IDs de canciones a
-	 *             eliminar.
-	 * @return Mensaje indicando si la operación fue exitosa o si ocurrió un error.
-	 */
 	@PostMapping("/playlists/delete-songs")
 	public String deleteSongsFromPlaylist(@RequestBody Map<String, Object> data) {
 		System.out.println("Datos recibidos para eliminar canciones: " + data);
