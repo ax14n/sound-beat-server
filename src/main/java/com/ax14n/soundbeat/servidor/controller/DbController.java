@@ -1,6 +1,7 @@
 package com.ax14n.soundbeat.servidor.controller;
 
 import java.sql.Array;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -164,7 +165,7 @@ public class DbController {
 	 * @return Canciones almacenadas en el servidor, por género o en general.
 	 */
 	@GetMapping("/songs")
-	public List<Map<String, Object>> getSongs(@RequestParam(required = false) String genre) {
+	public List<SongDTO> getSongsByGenre(String genre) {
 		String sql = (genre == null || "null".equalsIgnoreCase(genre.trim())) ? "SELECT * FROM songs"
 				: "SELECT * FROM songs WHERE genres IS NOT NULL AND ? = ANY(genres)";
 
@@ -172,19 +173,31 @@ public class DbController {
 				? queriesMaker.ejecutarConsulta(sql)
 				: queriesMaker.ejecutarConsultaSegura(sql, genre);
 
+		List<SongDTO> songs = new ArrayList<>();
 		for (Map<String, Object> row : rawResults) {
+			SongDTO dto = new SongDTO();
+
+			dto.setSongId((Integer) row.get("song_id"));
+			dto.setName((String) row.get("title"));
+			dto.setAuthor((String) row.get("artist"));
+			dto.setUrl((String) row.get("url"));
+			dto.setDuration((Integer) row.get("duration"));
+
 			Object pgArray = row.get("genres");
 			if (pgArray instanceof java.sql.Array array) {
 				try {
 					Object[] elements = (Object[]) array.getArray();
-					row.put("genres", Arrays.asList(elements));
+					dto.setGenres(Arrays.stream(elements).map(Object::toString).toList());
 				} catch (Exception e) {
-					row.put("genres", List.of("OTHER"));
+					dto.setGenres(List.of("OTHER"));
 				}
+			} else {
+				dto.setGenres(List.of("OTHER"));
 			}
-		}
 
-		return rawResults;
+			songs.add(dto);
+		}
+		return songs;
 	}
 
 	/**
