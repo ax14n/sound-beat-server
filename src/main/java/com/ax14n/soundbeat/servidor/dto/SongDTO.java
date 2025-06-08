@@ -10,7 +10,7 @@ public class SongDTO {
 	private Integer duration;
 	private List<String> genres;
 
-	public String getAuthor() {
+	public String getArtist() {
 		return artist;
 	}
 
@@ -18,7 +18,7 @@ public class SongDTO {
 		return genres;
 	}
 
-	public String getName() {
+	public String getTitle() {
 		return title;
 	}
 
@@ -34,16 +34,16 @@ public class SongDTO {
 		return duration;
 	}
 
-	public void setAuthor(String author) {
-		this.artist = author;
+	public void setArtist(String artist) {
+		this.artist = artist;
 	}
 
 	public void setGenres(List<String> genres) {
 		this.genres = genres;
 	}
 
-	public void setName(String name) {
-		this.title = name;
+	public void setTitle(String title) {
+		this.title = title;
 	}
 
 	public void setSongId(int songId) {

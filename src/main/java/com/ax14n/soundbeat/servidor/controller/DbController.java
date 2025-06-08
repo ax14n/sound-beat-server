@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import com.ax14n.soundbeat.servidor.dto.SongDTO;
+import com.ax14n.soundbeat.servidor.dto.UserDTO;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -137,8 +138,8 @@ public class DbController {
 		return jdbcTemplate.query(sql, new Object[] { playlistId }, (rs, rowNum) -> {
 			SongDTO song = new SongDTO();
 			song.setSongId(rs.getInt("song_id"));
-			song.setName(rs.getString("title"));
-			song.setAuthor(rs.getString("artist"));
+			song.setTitle(rs.getString("title"));
+			song.setArtist(rs.getString("artist"));
 			song.setUrl(rs.getString("url"));
 			song.setDuration(rs.getInt("duration"));
 
@@ -178,8 +179,8 @@ public class DbController {
 			SongDTO dto = new SongDTO();
 
 			dto.setSongId((Integer) row.get("song_id"));
-			dto.setName((String) row.get("title"));
-			dto.setAuthor((String) row.get("artist"));
+			dto.setTitle((String) row.get("title"));
+			dto.setArtist((String) row.get("author"));
 			dto.setUrl((String) row.get("url"));
 			dto.setDuration((Integer) row.get("duration"));
 
@@ -275,21 +276,27 @@ public class DbController {
 	 * @return Mínima información necesaria del usuario para completar el perfil.
 	 */
 	@GetMapping("/userInfo")
-	public Map<String, Object> obtenerInfoUsuario(@RequestParam String email) {
-		System.out.println("Obteniendo información del usuario con email: " + email);
+	public UserDTO obtenerInfoUsuario(@RequestParam String email) {
+		System.out.println("obteniendo información del usuario con email: " + email);
 
 		if (email == null || email.isEmpty()) {
-			throw new IllegalArgumentException("Error: el email es obligatorio.");
+			throw new IllegalArgumentException("error: el email es obligatorio.");
 		}
 
-		String sql = "SELECT username, DATE(date_joined) AS fecha_registro FROM users WHERE email = ?";
+		String sql = "SELECT username, date_joined FROM users WHERE email = ?";
 		List<Map<String, Object>> resultado = queriesMaker.ejecutarConsultaSegura(sql, email);
 
 		if (resultado.isEmpty()) {
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado.");
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "usuario no encontrado.");
 		}
 
-		return resultado.get(0);
+		Map<String, Object> row = resultado.get(0);
+
+		UserDTO dto = new UserDTO();
+		dto.setUsername((String) row.get("username"));
+		dto.setDateJoined(((java.sql.Timestamp) row.get("date_joined")).toLocalDateTime().toLocalDate());
+
+		return dto;
 	}
 
 	/**
