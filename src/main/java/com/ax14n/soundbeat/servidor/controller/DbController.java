@@ -1,5 +1,7 @@
 package com.ax14n.soundbeat.servidor.controller;
 
+import java.sql.Array;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +17,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import com.ax14n.soundbeat.servidor.dto.SongDTO;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
@@ -44,8 +49,9 @@ public class DbController {
 	 *                     datos.
 	 */
 	@Autowired
-	public DbController(QueriesMaker queriesMaker) {
+	public DbController(QueriesMaker queriesMaker, JdbcTemplate jdbcTemplate) {
 		this.queriesMaker = queriesMaker;
+		this.jdbcTemplate = jdbcTemplate;
 	}
 
 	/**
@@ -105,6 +111,8 @@ public class DbController {
 		return queriesMaker.ejecutarConsultaSegura(sql, email);
 	}
 
+	private final JdbcTemplate jdbcTemplate;
+
 	/**
 	 * Devuelve una lista de canciones que pertenecen a una playlist específica.
 	 *
@@ -117,13 +125,30 @@ public class DbController {
 	 * @return Una lista de mapas que representan las canciones de la playlist, o
 	 *         `null` si el ID de la playlist no es válido.
 	 */
+	@SuppressWarnings("deprecation")
 	@GetMapping("/getPlaylistSongs")
-	public List<Map<String, Object>> getPlaylistSongs(@RequestParam int playlistId) {
-		if (playlistId < 0) {
+	public List<SongDTO> getPlaylistSongs(@RequestParam int playlistId) {
+		if (playlistId < 0)
 			return null;
-		}
+
 		String sql = "SELECT * FROM SONGS WHERE song_id IN (SELECT song_id FROM PLAYLIST_SONGS WHERE playlist_id = ?);";
-		return queriesMaker.ejecutarConsultaSegura(sql, playlistId);
+
+		return jdbcTemplate.query(sql, new Object[] { playlistId }, (rs, rowNum) -> {
+			SongDTO song = new SongDTO();
+			song.setSongId(rs.getInt("song_id"));
+			song.setName(rs.getString("title"));
+			song.setAuthor(rs.getString("artist"));
+			song.setUrl(rs.getString("url"));
+			song.setDuration(rs.getInt("duration"));
+
+			Array genresArray = rs.getArray("genres");
+			if (genresArray != null) {
+				String[] genres = (String[]) genresArray.getArray();
+				song.setGenres(Arrays.asList(genres));
+			}
+
+			return song;
+		});
 	}
 
 	/**
@@ -140,11 +165,26 @@ public class DbController {
 	 */
 	@GetMapping("/songs")
 	public List<Map<String, Object>> getSongs(@RequestParam(required = false) String genre) {
-		if (genre == null || "null".equalsIgnoreCase(genre.trim())) {
-			return queriesMaker.ejecutarConsulta("SELECT * FROM songs");
+		String sql = (genre == null || "null".equalsIgnoreCase(genre.trim())) ? "SELECT * FROM songs"
+				: "SELECT * FROM songs WHERE genres IS NOT NULL AND ? = ANY(genres)";
+
+		List<Map<String, Object>> rawResults = (genre == null || "null".equalsIgnoreCase(genre.trim()))
+				? queriesMaker.ejecutarConsulta(sql)
+				: queriesMaker.ejecutarConsultaSegura(sql, genre);
+
+		for (Map<String, Object> row : rawResults) {
+			Object pgArray = row.get("genres");
+			if (pgArray instanceof java.sql.Array array) {
+				try {
+					Object[] elements = (Object[]) array.getArray();
+					row.put("genres", Arrays.asList(elements));
+				} catch (Exception e) {
+					row.put("genres", List.of("OTHER"));
+				}
+			}
 		}
-		String sql = "SELECT * FROM songs WHERE genres IS NOT NULL AND ? = ANY(genres)";
-		return queriesMaker.ejecutarConsultaSegura(sql, genre);
+
+		return rawResults;
 	}
 
 	/**
@@ -202,11 +242,11 @@ public class DbController {
 			throw new IllegalArgumentException("Error: el email es obligatorio.");
 		}
 		String sql = "SELECT EXISTS (SELECT 1 FROM users WHERE email = ?) AS existe";
-		List<Map<String, Object>> resultado = queriesMaker.ejecutarConsultaSegura(sql, email);
+		List<Map<String, Object>> result = queriesMaker.ejecutarConsultaSegura(sql, email);
 
 		boolean exists = false;
-		if (!resultado.isEmpty()) {
-			exists = Boolean.TRUE.equals(resultado.get(0).get("existe"));
+		if (!result.isEmpty()) {
+			exists = Boolean.TRUE.equals(result.get(0).get("existe"));
 		}
 
 		System.out.println("Resultado = " + exists);
@@ -266,13 +306,13 @@ public class DbController {
 		String sql = "SELECT password FROM users WHERE email = ?";
 
 		// --- { Ejecución de la consulta } --- //
-		List<Map<String, Object>> resultados = queriesMaker.ejecutarConsultaSegura(sql, email);
+		List<Map<String, Object>> results = queriesMaker.ejecutarConsultaSegura(sql, email);
 
-		if (resultados.isEmpty()) {
+		if (results.isEmpty()) {
 			return "Error: usuario no encontrado.";
 		}
 
-		String storedHashedPassword = (String) resultados.get(0).get("password");
+		String storedHashedPassword = (String) results.get(0).get("password");
 
 		// --- { Verificación de la contraseña } --- //
 		if (passwordEncoder.matches(rawPassword, storedHashedPassword)) {
@@ -298,41 +338,62 @@ public class DbController {
 	 * @return
 	 */
 	@SuppressWarnings("unchecked")
-	@PostMapping("/playlists/createPlaylist")
+	@PostMapping("/createPlaylist")
 	public String createPlaylist(@RequestBody Map<String, Object> playlistData) {
-		System.out.println("Datos recibidos para crear playlist: " + playlistData);
+		System.out.println("[DB] Datos recibidos para crear playlist: " + playlistData);
 
 		String name = (String) playlistData.get("playlist_name");
 		String email = (String) playlistData.get("user_email");
 		List<Integer> songsId = (List<Integer>) playlistData.get("songs_id");
 
 		if (name == null || email == null) {
+			System.out.println("[DB] Faltan parámetros obligatorios: nombre o email");
 			return "Error: nombre y email son obligatorios.";
 		}
 
 		try {
+			System.out.println("[DB] Buscando user_id por email: " + email);
 			String queryUser = "SELECT user_id FROM users WHERE email = ?";
 			List<Map<String, Object>> userResults = queriesMaker.ejecutarConsultaSegura(queryUser, email);
 
 			if (userResults.isEmpty()) {
+				System.out.println("[DB] Usuario no encontrado: " + email);
 				return "Error: No se encontró un usuario con ese email.";
 			}
 
 			Integer userId = (Integer) userResults.get(0).get("user_id");
+			System.out.println("[DB] user_id encontrado: " + userId);
 
-			// 2. Insertar la playlist
-			String insertSql = "INSERT INTO playlists (name, user_id) VALUES (?, ?)";
-			int rowsAffected = queriesMaker.ejecutarActualizacion(insertSql, name, userId);
+			System.out.println("[DB] Insertando nueva playlist con nombre: '" + name + "', para user_id: " + userId);
+			String insertSql = "INSERT INTO playlists (name, user_id) VALUES (?, ?) RETURNING playlist_id";
+			List<Map<String, Object>> insertResult = queriesMaker.ejecutarConsultaSegura(insertSql, name, userId);
 
-			if (songsId != null) {
-				String insertSql2 = "INSERT INTO playlists_songs (name, user_id) VALUES (?, ?)";
-				int rowsAffected2 = queriesMaker.ejecutarActualizacion(insertSql, name, userId);
+			if (insertResult.isEmpty()) {
+				System.out.println("[DB] Error: No se pudo insertar la playlist.");
+				return "Error: Fallo al insertar la playlist.";
 			}
 
-			return (rowsAffected > 0) ? "Playlist creada exitosamente." : "Error al crear la playlist.";
+			int playlistID = (int) insertResult.get(0).get("playlist_id");
+			System.out.println("[DB] ID de la playlist creada: " + playlistID);
+
+			if (songsId != null) {
+				System.out.println("[DB] Insertando canciones asociadas a la nueva playlist...");
+				String insertSql2 = "INSERT INTO playlist_songs (playlist_id, song_id) VALUES (?, ?) ON CONFLICT DO NOTHING";
+				for (int song = 0; song < songsId.size(); song++) {
+					int result = queriesMaker.ejecutarActualizacion(insertSql2, playlistID, songsId.get(song));
+					System.out.println("[DB] Añadida canción ID " + songsId.get(song) + " => "
+							+ (result > 0 ? "OK" : "YA EXISTE"));
+				}
+			} else {
+				System.out.println("[DB] No se proporcionaron canciones para insertar.");
+			}
+
+			System.out.println("[DB] Playlist insertada correctamente con ID: " + playlistID);
+			return "Playlist creada exitosamente.";
 
 		} catch (Exception e) {
 			e.printStackTrace();
+			System.out.println("[DB] Excepción en la creación de la playlist: " + e.getMessage());
 			return "Error en el servidor: " + e.getMessage();
 		}
 	}
