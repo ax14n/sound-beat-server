@@ -20,7 +20,6 @@ public class QueriesMaker {
 	/**
 	 * Función que permite realizar consultas.
 	 * 
-	 * @param consultaSql Sentencia SQL de consulta.
 	 * @return Resultado de la consulta.
 	 */
 	public List<Map<String, Object>> ejecutarConsulta(String consultaSql) {

@@ -21,6 +21,10 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import com.ax14n.soundbeat.servidor.dto.SongDTO;
 import com.ax14n.soundbeat.servidor.dto.UserDTO;
+import java.io.IOException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.logging.*;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -32,6 +36,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @RestController
 @RequestMapping("/api")
 public class DbController {
+
+	private final static Logger LOGGER = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
 
 	/**
 	 * Objeto encargado de gestionar las consultas de la base de datos.
@@ -217,7 +223,6 @@ public class DbController {
 		System.out.println("Datos recibidos: " + userData);
 
 		// --- { Extracción de parámetros } --- //
-		String username = "undefined";
 		String email = (String) userData.get("email");
 		String rawPassword = (String) userData.get("password");
 
@@ -230,10 +235,10 @@ public class DbController {
 		String hashedPassword = passwordEncoder.encode(rawPassword);
 
 		// --- { Creación de la consulta de inserción } --- //
-		String sql = "INSERT INTO users (username, email, password) VALUES (?, ?, ?)";
+		String sql = "INSERT INTO users (email, password) VALUES (?, ?)";
 
 		// --- { Ejecución de la consulta } --- //
-		int rowsAffected = queriesMaker.ejecutarActualizacion(sql, username, email, hashedPassword);
+		int rowsAffected = queriesMaker.ejecutarActualizacion(sql, email, hashedPassword);
 
 		// --- { Envío del resultado } --- //
 		return (rowsAffected > 0) ? "Usuario registrado exitosamente!" : "Error al registrar el usuario.";
@@ -358,7 +363,7 @@ public class DbController {
 	 * @return
 	 */
 	@SuppressWarnings("unchecked")
-	@PostMapping("/createPlaylist")
+	@PostMapping("/playlists/createPlaylist")
 	public String createPlaylist(@RequestBody Map<String, Object> playlistData) {
 		System.out.println("[DB] Datos recibidos para crear playlist: " + playlistData);
 
@@ -415,6 +420,164 @@ public class DbController {
 			e.printStackTrace();
 			System.out.println("[DB] Excepción en la creación de la playlist: " + e.getMessage());
 			return "Error en el servidor: " + e.getMessage();
+		}
+	}
+
+	/**
+	 * Agrega una canción a la tabla de favoritos. Se envía por el cuerpo el email
+	 * del usuario y el ID de la canción que desea agregar.
+	 * 
+	 * @param data Cuerpo de la petición con email y playlist_id.
+	 */
+	@PostMapping("/favorites/addFavorite")
+	public void addFavoriteSong(@RequestBody Map<String, Object> data) {
+		Integer songId = (Integer) data.get("songId");
+		String email = (String) data.get("email");
+
+		if (songId < 0) {
+			LOGGER.log(Level.SEVERE, "El identificador del a base de datos no puede ser inferior a 0.");
+		} else if (email == null) {
+			LOGGER.log(Level.SEVERE, "El correo electrónico no puede ser nulo.");
+		} else if (!userExists(email)) {
+			LOGGER.log(Level.SEVERE, "No se conoce la existencia de nadie con el correo proporcioando.");
+		} else {
+
+			// Encuentra y extrae el usuario con el correo proporcionado
+			LOGGER.log(Level.INFO, "Intentando obtener el userId de %s".formatted(email));
+
+			String querySql = "SELECT user_id FROM users where email = ?";
+			List<Map<String, Object>> result = queriesMaker.ejecutarConsultaSegura(querySql, email);
+
+			int userId = (Integer) result.get(0).get("user_id");
+
+			// Agrega la canción a la tabla de favoritos al usuario indicado.
+			LOGGER.log(Level.INFO,
+					"Intentando agregar canción con ID %d a la dirección de correo %s".formatted(songId, email));
+
+			String insertSql = "INSERT INTO favorites (user_id, song_id) VALUES (?, ?) ON CONFLICT DO NOTHING";
+
+			queriesMaker.ejecutarActualizacion(insertSql, userId, songId);
+		}
+
+	}
+
+	@GetMapping("/favorites/isFavorite")
+	public String isFavorite(@RequestParam String email, @RequestParam int songId) {
+		boolean exists = false;
+		if (songId < 0) {
+			LOGGER.log(Level.SEVERE, "El identificador del a base de datos no puede ser inferior a 0.");
+		} else if (email == null) {
+			LOGGER.log(Level.SEVERE, "El correo electrónico no puede ser nulo.");
+		} else if (!userExists(email)) {
+			LOGGER.log(Level.SEVERE, "No se conoce la existencia de nadie con el correo proporcioando.");
+		} else {
+
+			// Encuentra y extrae el usuario con el correo proporcionado
+			LOGGER.log(Level.INFO, "Intentando obtener el userId de %s".formatted(email));
+
+			String querySql = "SELECT user_id FROM users where email = ?";
+			List<Map<String, Object>> result = queriesMaker.ejecutarConsultaSegura(querySql, email);
+
+			int userId = (Integer) result.get(0).get("user_id");
+
+			LOGGER.log(Level.INFO, "Intentando determinar si la canción con id %d esta dentro de favoritos de %s"
+					.formatted(songId, email));
+
+			String querySql2 = "SELECT * FROM favorites where user_id = ? AND song_id = ?";
+
+			List<Map<String, Object>> result2 = queriesMaker.ejecutarConsultaSegura(querySql2, userId, songId);
+
+			exists = !result2.isEmpty();
+
+		}
+		// --- { Verificación de la contraseña } --- //
+		return exists ? "true" : "false";
+	}
+
+	/**
+	 * Eliminar una canción a la tabla de favoritos. Se envía por el cuerpo el email
+	 * del usuario y el ID de la canción que desea eliminar.
+	 * 
+	 * @param data Cuerpo de la petición con email y playlist_id.
+	 */
+	@PostMapping("/favorites/deleteFavorite")
+	public void deleteFavoriteSong(@RequestBody Map<String, Object> data) {
+		Integer songId = (Integer) data.get("songId");
+		String email = (String) data.get("email");
+
+		if (songId < 0) {
+			LOGGER.log(Level.SEVERE, "El identificador del a base de datos no puede ser inferior a 0.");
+		} else if (email == null) {
+			LOGGER.log(Level.SEVERE, "El correo electrónico no puede ser nulo.");
+		} else if (!userExists(email)) {
+			LOGGER.log(Level.SEVERE, "No se conoce la existencia de nadie con el correo proporcioando.");
+		} else {
+
+			// Encuentra y extrae el usuario con el correo proporcionado
+			LOGGER.log(Level.INFO, "Intentando obtener el userId de %s".formatted(email));
+
+			String querySql = "SELECT user_id FROM users where email = ?";
+			List<Map<String, Object>> result = queriesMaker.ejecutarConsultaSegura(querySql, email);
+
+			int userId = (Integer) result.get(0).get("user_id");
+
+			// Agrega la canción a la tabla de favoritos al usuario indicado.
+			LOGGER.log(Level.INFO,
+					"Intentando eliminar canción con ID %d a la dirección de correo %s".formatted(songId, email));
+
+			String deleteSql = "DELETE FROM favorites WHERE user_id = ? AND song_id = ?";
+
+			queriesMaker.ejecutarActualizacion(deleteSql, userId, songId);
+		}
+
+	}
+
+	@PostMapping("/configurations/changeUsername")
+	public void changeUsername(@RequestBody Map<String, Object> data) {
+
+		String email = (String) data.get("email");
+		String newUsername = (String) data.get("newUsername");
+		LOGGER.log(Level.INFO, "Email del usuario que quiere cambiar su nickname: " + email);
+		LOGGER.log(Level.INFO, "Nombre que desea el nuevo usuario: " + email);
+
+		String queryUser = "UPDATE users SET username = ? WHERE email = ?";
+
+		queriesMaker.ejecutarActualizacion(queryUser, newUsername, email);
+	}
+
+	@PostMapping("/configurations/changeEmail")
+	public void changeEmail(@RequestBody Map<String, Object> data) {
+
+		String email = (String) data.get("email");
+		String newEmail = (String) data.get("newEmail");
+		LOGGER.log(Level.INFO, "Email del usuario que quiere cambiar su email: " + email);
+		LOGGER.log(Level.INFO, "Email que desea el nuevo usuario: " + newEmail);
+
+		String queryUser = "UPDATE users SET email = ? WHERE email = ?";
+
+		int result = queriesMaker.ejecutarActualizacion(queryUser, newEmail, email);
+
+		if (result > 0) {
+			LOGGER.log(Level.INFO, "Cambio de email ejecutado con éxito. %s -> %s".formatted(email, newEmail));
+		}
+	}
+
+	@PostMapping("/configurations/changePassword")
+	public void changePassword(@RequestBody Map<String, Object> data) {
+
+		String email = (String) data.get("email");
+		String newPassword = (String) data.get("newPassword");
+		LOGGER.log(Level.INFO, "Email del usuario que quiere cambiar su contrasña: " + email);
+
+		String queryUser = "UPDATE users SET password = ? WHERE email = ?";
+
+		String hashedPassword = passwordEncoder.encode(newPassword);
+
+		
+		int result = queriesMaker.ejecutarActualizacion(queryUser, hashedPassword, email);
+
+		if (result > 0) {
+			LOGGER.log(Level.INFO, "Cambio de contraseña para %s ejecutado con éxito".formatted(email));
 		}
 	}
 
@@ -501,39 +664,6 @@ public class DbController {
 			}
 
 			return "Canciones agregadas exitosamente a la playlist.";
-
-		} catch (Exception e) {
-			e.printStackTrace();
-			return "Error en el servidor: " + e.getMessage();
-		}
-	}
-
-	/**
-	 * Añade una canción a la lista de favoritas de un usuario identificado por su
-	 * email.
-	 *
-	 * @param data Un JSON con los campos: - "email" (String): correo del usuario. -
-	 *             "song_id" (int): ID de la canción a marcar como favorita.
-	 * @return Mensaje indicando si la operación fue exitosa o si ocurrió un error.
-	 */
-	@PostMapping
-	public String addFavorites(@RequestBody Map<String, Object> data) {
-
-		String email = (String) data.get("email");
-		int song_id = (int) data.get("song_id");
-
-		if (email == null || song_id < 0) {
-			return "Error: playlist_id y una lista de song_ids son obligatorios.";
-		}
-
-		try {
-
-			String insertSql = "INSERT INTO Favorites (user_id, song_id) "
-					+ "VALUES ((SELECT user_id FROM Users WHERE email = ?), ?);";
-
-			queriesMaker.ejecutarActualizacion(insertSql, email, song_id);
-
-			return "Canción favorita agregada correctamente";
 
 		} catch (Exception e) {
 			e.printStackTrace();
