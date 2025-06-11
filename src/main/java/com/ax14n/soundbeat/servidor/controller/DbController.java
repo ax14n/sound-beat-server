@@ -1,8 +1,10 @@
 package com.ax14n.soundbeat.servidor.controller;
 
 import java.sql.Array;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -532,6 +534,63 @@ public class DbController {
 
 	}
 
+	@GetMapping("/favorites/getFavorites")
+	public List<SongDTO> getFavorites(@RequestParam String email) {
+		if (email == null || email.isBlank()) {
+			LOGGER.log(Level.SEVERE, "El correo electrónico no puede ser nulo.");
+			return Collections.emptyList(); // Devuelve lista vacía si está mal
+		}
+
+		if (!userExists(email)) {
+			LOGGER.log(Level.SEVERE, "No se conoce la existencia de nadie con el correo proporcionado.");
+			return Collections.emptyList(); // También lista vacía si el user no existe
+		}
+
+		String sql = """
+					SELECT *
+					FROM songs
+					WHERE song_id IN (
+						SELECT song_id
+						FROM FAVORITES
+						WHERE user_id = (
+							SELECT user_id
+							FROM users
+							WHERE email = ?
+						)
+					)
+				""";
+
+		List<Map<String, Object>> rows = queriesMaker.ejecutarConsultaSegura(sql, email);
+
+		List<SongDTO> canciones = new ArrayList<>();
+
+		for (Map<String, Object> row : rows) {
+			SongDTO song = new SongDTO();
+			song.setSongId((Integer) row.get("song_id"));
+			song.setTitle((String) row.get("title"));
+			song.setArtist((String) row.get("artist"));
+			song.setUrl((String) row.get("url"));
+			song.setDuration((Integer) row.get("duration"));
+
+			Object genresObj = row.get("genres");
+			if (genresObj instanceof java.sql.Array sqlArray) {
+				try {
+					String[] genresArray = (String[]) sqlArray.getArray();
+					song.setGenres(Arrays.asList(genresArray));
+				} catch (SQLException e) {
+					LOGGER.log(Level.WARNING, "No se pudieron leer los géneros", e);
+					song.setGenres(Collections.emptyList());
+				}
+			} else {
+				song.setGenres(Collections.emptyList());
+			}
+
+			canciones.add(song);
+		}
+
+		return canciones;
+	}
+
 	@PostMapping("/configurations/changeUsername")
 	public void changeUsername(@RequestBody Map<String, Object> data) {
 
@@ -573,7 +632,6 @@ public class DbController {
 
 		String hashedPassword = passwordEncoder.encode(newPassword);
 
-		
 		int result = queriesMaker.ejecutarActualizacion(queryUser, hashedPassword, email);
 
 		if (result > 0) {
