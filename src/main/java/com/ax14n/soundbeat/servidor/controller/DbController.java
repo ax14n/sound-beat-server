@@ -707,7 +707,7 @@ public class DbController {
 
 		try {
 			// Verifica que la playlist exista
-			String checkPlaylist = "SELECT 1 FROM playlists WHERE playlist_id = ?";
+			String checkPlaylist = "SELECT * FROM playlists WHERE playlist_id = ?";
 			List<Map<String, Object>> exists = queriesMaker.ejecutarConsultaSegura(checkPlaylist, playlistId);
 
 			if (exists.isEmpty()) {
